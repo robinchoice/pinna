@@ -15,6 +15,17 @@ cannot hear what they do. Pinna is built around that gap:
 Status: stage 1, engine MVP without GUI. A minimal UI follows (arrangement view plus
 a proposal column with loudness-matched A/B).
 
+## Use
+
+```sh
+cargo install --path crates/pinna
+pinna init --example nachtzug song      # project folder with its own git repository
+claude mcp add pinna -- pinna mcp --project "$PWD/song"
+```
+
+MCP tools: `digest`, `edit`, `undo`, `analyze`, `compare`, `propose`. Accepting stays
+with the human: `pinna proposals`, then `pinna accept <slug>` or `pinna discard <slug>`.
+
 ## Layout
 
 ```
