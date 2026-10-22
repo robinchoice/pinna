@@ -1,0 +1,3 @@
+[build]
+# Parallel rustc of the heavy deps runs a 16 GB laptop out of memory.
+jobs = 4

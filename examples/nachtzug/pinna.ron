@@ -1,0 +1,187 @@
+#![enable(implicit_some)]
+(
+  version: 1,
+  name: "Nachtzug",
+  tempo: 124.0,
+  beats_per_bar: 4,
+  sections: [
+    (
+      name: "Intro",
+      from: "1.1",
+      to: "9.1",
+    ),
+    (
+      name: "Refrain",
+      from: "9.1",
+      to: "17.1",
+    ),
+    (
+      name: "Strophe",
+      from: "17.1",
+      to: "25.1",
+    ),
+    (
+      name: "Outro",
+      from: "25.1",
+      to: "33.1",
+    ),
+  ],
+  tracks: [
+    (
+      id: "kick",
+      instrument: (
+        id: "drums",
+        kind: Drums,
+      ),
+      clips: [
+        Notes(
+          id: "four",
+          at: "1.1",
+          len: "128",
+          loop_len: "4",
+          notes: [
+            "C2 0 1/4 120",
+            "C2 1 1/4 120",
+            "C2 2 1/4 120",
+            "C2 3 1/4 120",
+          ],
+        ),
+      ],
+      fx: [],
+    ),
+    (
+      id: "hats",
+      instrument: (
+        id: "drums",
+        kind: Drums,
+      ),
+      gain_db: -4.0,
+      pan: 0.2,
+      clips: [
+        Notes(
+          id: "offbeat",
+          at: "1.1",
+          len: "128",
+          loop_len: "1",
+          notes: [
+            "F#2 1/2 1/4 90",
+          ],
+        ),
+      ],
+      fx: [],
+    ),
+    (
+      id: "bass",
+      instrument: (
+        id: "saw",
+        kind: SawBass,
+        params: {
+          "cutoff": 500.0,
+          "sub": 0.6,
+        },
+      ),
+      clips: [
+        Notes(
+          id: "refrain",
+          at: "9.1",
+          len: "32",
+          loop_len: "8",
+          notes: [
+            "E1 0 1",
+            "E1 1 1",
+            "G1 2 1",
+            "A1 3 1",
+            "E1 4 1",
+            "E1 5 1",
+            "D1 6 1",
+            "G1 7 1",
+          ],
+        ),
+        Notes(
+          id: "strophe",
+          at: "17.1",
+          len: "32",
+          loop_len: "8",
+          notes: [
+            "E1 0 2",
+            "E1 2 2",
+            "C1 4 2",
+            "D1 6 2",
+          ],
+        ),
+      ],
+      fx: [],
+    ),
+    (
+      id: "pad",
+      instrument: (
+        id: "tri",
+        kind: Pad,
+      ),
+      gain_db: -10.0,
+      clips: [
+        Notes(
+          id: "chords",
+          at: "1.1",
+          len: "128",
+          loop_len: "16",
+          notes: [
+            "E3 0 4",
+            "G3 0 4",
+            "B3 0 4",
+            "C3 4 4",
+            "E3 4 4",
+            "G3 4 4",
+            "G2 8 4",
+            "B2 8 4",
+            "D3 8 4",
+            "D3 12 4",
+            "F#3 12 4",
+            "A3 12 4",
+          ],
+        ),
+      ],
+      fx: [
+        (
+          id: "lp",
+          kind: LowPass,
+          params: {
+            "freq": 3000.0,
+          },
+        ),
+      ],
+    ),
+    (
+      id: "lead",
+      instrument: (
+        id: "pluck",
+        kind: Pluck,
+      ),
+      gain_db: -8.0,
+      pan: -0.2,
+      clips: [
+        Notes(
+          id: "hook",
+          at: "9.1",
+          len: "32",
+          loop_len: "8",
+          notes: [
+            "E4 0 1/2",
+            "G4 1/2 1/2",
+            "B4 1 1",
+            "A4 5/2 1/2",
+            "G4 3 1",
+            "E4 4 1/2",
+            "D4 9/2 1/2",
+            "E4 5 2",
+          ],
+        ),
+      ],
+      fx: [],
+    ),
+  ],
+  master: (
+    gain_db: -6.0,
+    fx: [],
+  ),
+)

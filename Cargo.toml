@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["crates/pinna-core", "crates/pinna-engine", "crates/pinna-analysis", "crates/pinna"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/robinchoice/pinna"
+publish = false
+
+[workspace.dependencies]
+pinna-core = { path = "crates/pinna-core" }
+pinna-engine = { path = "crates/pinna-engine" }
+pinna-analysis = { path = "crates/pinna-analysis" }
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.test]
+opt-level = 1

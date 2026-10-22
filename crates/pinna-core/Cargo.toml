@@ -1,0 +1,17 @@
+[package]
+name = "pinna-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+ron = "0.12.2"
+schemars = "1.2.3"
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+
+[dev-dependencies]
+serde_json = "1.0.154"
+tempfile = "3.27.0"

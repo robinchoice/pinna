@@ -1,0 +1,17 @@
+[package]
+name = "pinna-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+hound = "3.5.1"
+pinna-core.workspace = true
+rubato = "5.0.1"
+symphonia = { version = "0.6.1", default-features = false, features = ["wav", "flac", "mp3", "ogg", "vorbis", "pcm"] }
+thiserror = "2.0.21"
+
+[dev-dependencies]
+sha2 = "0.11.1"

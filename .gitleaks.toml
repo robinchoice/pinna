@@ -1,0 +1,16 @@
+# Secret scan in .github/workflows/secrets.yml, on top of the gitleaks default rules.
+[extend]
+useDefault = true
+
+# Bundled third-party code (minified sources in bun patch files, hashes in lockfiles)
+# trips the entropy rule generic-api-key. Only that rule is skipped there, real token
+# formats like ghp_ or sk_live_ are still caught in these files.
+[[allowlists]]
+description = "Bundled third-party code"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^patches/[^/]+\.patch$''',
+  '''(^|/)bun\.lock$''',
+  '''(^|/)pubspec\.lock$''',
+  '''(^|/)Cargo\.lock$''',
+]
