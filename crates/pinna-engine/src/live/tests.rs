@@ -299,3 +299,44 @@ fn real_time_feed_has_no_dropouts() {
     assert!(player.song_ready(), "the song change never arrived");
     assert!(peak > 0.01, "silent");
 }
+
+#[test]
+fn a_longer_proposal_plays_to_its_own_end() {
+    let dir = temp_dir("live-longer");
+    let (a, _) = tone(&dir, 0.0);
+    let mut b = a.clone();
+    let mut more = audio("9.1", "8", "tone.wav", "0");
+    if let pinna_core::Clip::Audio { id, .. } = &mut more {
+        *id = "more".into();
+    }
+    b.tracks[0].clips.push(more);
+    let (player, mut out) = Player::new(SR);
+    player.set_b(true);
+    let (ea, eb) = (
+        a.timing().sample(a.end_tick(), SR),
+        b.timing().sample(b.end_tick(), SR),
+    );
+    play(&player, &a, Some(&b), &dir, ea - 1000);
+    let live = collect(&mut out, (eb - ea) as usize);
+    std::fs::remove_dir_all(&dir).unwrap();
+    assert!(
+        live.l[live.len() - 1000..].iter().any(|&x| x != 0.0),
+        "B was cut at A's end"
+    );
+}
+
+#[test]
+fn playing_past_the_end_stops_by_itself() {
+    let dir = temp_dir("live-past");
+    let (a, _) = tone(&dir, 0.0);
+    let (player, _out) = Player::new(SR);
+    play(
+        &player,
+        &a,
+        None,
+        &dir,
+        a.timing().sample(a.end_tick(), SR) + 10 * u64::from(SR),
+    );
+    wait("stopped", || !player.is_playing());
+    std::fs::remove_dir_all(&dir).unwrap();
+}

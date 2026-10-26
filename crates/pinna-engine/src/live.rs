@@ -68,6 +68,11 @@ struct Shared {
     error: Mutex<Option<String>>,
 }
 
+/// Epoch `e` was started before `than` (epochs wrap around).
+fn older(e: u32, than: u32) -> bool {
+    (than.wrapping_sub(e) as i32) > 0
+}
+
 /// Rising half of a smooth fade: zero slope at both ends, so fades add no kinks.
 fn smoothstep(t: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
@@ -95,7 +100,9 @@ impl Output {
         let mut underrun = false;
         for frame in out.chunks_mut(channels.max(1)) {
             if self.epoch != target && self.env <= 0.0 {
-                while self.frames.peek().is_ok_and(|f| f.epoch != target) {
+                // Drop what is left of older epochs; a newer start than `target`
+                // (play pressed again meanwhile) stays for the next call.
+                while self.frames.peek().is_ok_and(|f| older(f.epoch, target)) {
                     let _ = self.frames.pop();
                 }
                 self.epoch = target;
@@ -121,11 +128,11 @@ impl Output {
                         env * (f.a[1] * (1.0 - m) + f.b[1] * b_gain * m),
                     )
                 }
-                _ => {
+                found => {
                     if fading_out {
                         // Nothing left of the old epoch to fade.
                         self.env = 0.0;
-                    } else if self.shared.producing.load(Ordering::Acquire) {
+                    } else if found.is_err() && self.shared.producing.load(Ordering::Acquire) {
                         underrun = true;
                     }
                     (0.0, 0.0)
@@ -190,7 +197,6 @@ impl Player {
             tx: tx.clone(),
             rx,
             song: None,
-            end: 0,
             deck: None,
             old: None,
             epoch: 0,
@@ -317,6 +323,8 @@ struct Deck {
     filled: bool,
     /// Next sample to read.
     next: u64,
+    /// Last sample to play: the longer of A and B, plus a tail.
+    end: u64,
 }
 
 impl Deck {
@@ -327,12 +335,15 @@ impl Deck {
             r.skip_to(at);
             Ok::<_, String>(r)
         };
+        let end_of = |p: &Project| p.timing().sample(p.end_tick(), sr);
+        let tail = (TAIL_MS * f64::from(sr) / 1000.0) as u64;
         Ok(Self {
             a: make(&song.a)?,
             b: song.b.as_ref().map(make).transpose()?,
             block: 0,
             filled: false,
             next: at,
+            end: end_of(&song.a).max(song.b.as_ref().map_or(0, end_of)) + tail,
         })
     }
 
@@ -375,8 +386,6 @@ struct Engine {
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     song: Option<Arc<Song>>,
-    /// Last sample to play, the song end plus a tail.
-    end: u64,
     deck: Option<Deck>,
     /// The render being crossfaded out, with the samples left.
     old: Option<(Deck, usize)>,
@@ -431,9 +440,6 @@ impl Engine {
     fn handle(&mut self, msg: Msg) {
         match msg {
             Msg::Song(song) => {
-                let t = song.a.timing();
-                self.end = t.sample(song.a.end_tick(), self.sr)
-                    + (TAIL_MS * f64::from(self.sr) / 1000.0) as u64;
                 self.song = Some(Arc::new(*song));
                 self.songs += 1;
                 self.set_snapshot(None);
@@ -579,8 +585,16 @@ impl Engine {
         {
             let cur = std::mem::replace(deck, snap.clone());
             self.old = Some((cur, self.fade));
-        } else if deck.next >= self.end {
+            // The snapshot is of the latest song, so this wrap is the switch.
+            if self.want_switch != 0 {
+                self.want_switch = 0;
+                self.shared
+                    .songs_applied
+                    .store(self.songs, Ordering::Release);
+            }
+        } else if deck.next >= deck.end {
             self.shared.producing.store(false, Ordering::Release);
+            self.shared.starting.store(false, Ordering::Release);
             self.deck = None;
             self.old = None;
             return None;
