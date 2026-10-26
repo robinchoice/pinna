@@ -15,7 +15,7 @@ UI review by screenshot: `cargo build -p pinna-studio --features screenshot`, th
 
 ## Deploy
 
-No deploy. A push to `main` runs `.github/workflows/ci.yml` and the secret scan `secrets.yml`; check with `gh run watch`. A tag `v*` runs `release.yml`: unsigned `pinna` and `pinna-studio` for linux-x86_64, macos-arm64, macos-x86_64 and windows-x86_64 as a GitHub release. Signing/notarizing for macOS costs money and is Robin's decision.
+No deploy. A push to `main` runs `.github/workflows/ci.yml` and the secret scan `secrets.yml`; check with `gh run watch`. A tag `v*` runs `release.yml`: unsigned `pinna` and `pinna-studio` for linux-x86_64, macos-arm64, macos-x86_64 and windows-x86_64 as a GitHub release. macOS builds stay unsigned for now (Robin, 26.10.2026); signing/notarizing needs a paid Apple Developer account and a new decision.
 
 ## Fallen
 
