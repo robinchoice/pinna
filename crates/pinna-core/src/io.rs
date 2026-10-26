@@ -28,7 +28,9 @@ pub fn parse(text: &str) -> Result<Project, Error> {
 
 /// Canonical text of a project. Does not validate.
 pub fn to_text(project: &Project) -> String {
+    // ron writes CRLF on Windows by default; the file is the same everywhere.
     let config = PrettyConfig::new()
+        .new_line("\n")
         .indentor("  ")
         .struct_names(false)
         .separate_tuple_members(false)
