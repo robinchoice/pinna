@@ -1,10 +1,18 @@
 name: Release
 
 # A tag v* builds unsigned binaries (pinna and pinna-studio) for Linux, macOS and
-# Windows and attaches them to a GitHub release.
+# Windows and attaches them to a GitHub release. Run it by hand to redo a tag.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build, e.g. v0.2.0
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -27,6 +35,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
       - name: Audio headers for cpal
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
@@ -38,7 +48,7 @@ jobs:
       - run: cargo build --release --locked --target ${{ matrix.target }} -p pinna -p pinna-studio
       - name: Package
         env:
-          NAME: pinna-${{ github.ref_name }}-${{ matrix.name }}
+          NAME: pinna-${{ env.TAG }}-${{ matrix.name }}
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
@@ -51,7 +61,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: dist/*.*
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
           if-no-files-found: error
 
   release:
@@ -66,7 +78,6 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Pinna $TAG" \
+          gh release create "$TAG" dist/*.tar.gz dist/*.zip --repo "$GITHUB_REPOSITORY" --title "Pinna $TAG" \
             --notes "Unsigned builds of \`pinna\` (CLI and MCP server) and \`pinna-studio\`. macOS: the first start is blocked by Gatekeeper; allow it under System Settings > Privacy & Security, or run \`xattr -d com.apple.quarantine pinna-studio pinna\` in the unpacked folder."
