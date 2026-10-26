@@ -4,7 +4,7 @@
 use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use pinna_core::{Clip, Device, Lane, Project, Timing, Track};
 
@@ -67,14 +67,16 @@ pub fn note_events(track: &Track, timing: &Timing, sr: u32) -> Vec<NoteEvent> {
     events
 }
 
+#[derive(Clone)]
 struct AudioClip {
     start: u64,
     end: u64,
     offset: u64,
     gain: f64,
-    data: Rc<Stereo>,
+    data: Arc<Stereo>,
 }
 
+#[derive(Clone)]
 enum Source {
     /// The master: the sum of all stems.
     Input,
@@ -86,6 +88,7 @@ enum Source {
     Audio(Vec<AudioClip>),
 }
 
+#[derive(Clone)]
 enum Target {
     Gain,
     Pan,
@@ -93,12 +96,14 @@ enum Target {
     Fx(usize, &'static str),
 }
 
+#[derive(Clone)]
 struct AutoLane {
     target: Target,
     auto: Auto,
     last: f64,
 }
 
+#[derive(Clone)]
 pub struct Strip {
     source: Source,
     fx: Vec<Effect>,
@@ -108,7 +113,7 @@ pub struct Strip {
 }
 
 /// Audio files decoded at the render rate, shared between clips.
-pub type FileCache = BTreeMap<String, Rc<Stereo>>;
+pub type FileCache = BTreeMap<String, Arc<Stereo>>;
 
 impl Strip {
     pub fn track(
@@ -140,7 +145,7 @@ impl Strip {
                     if !files.contains_key(file) {
                         let path =
                             pinna_core::path::resolve(root, file).map_err(EngineError::Invalid)?;
-                        files.insert(file.clone(), Rc::new(read_audio(&path, sr)?));
+                        files.insert(file.clone(), Arc::new(read_audio(&path, sr)?));
                     }
                     let (start, end) = clip.span(&timing);
                     clips.push(AudioClip {

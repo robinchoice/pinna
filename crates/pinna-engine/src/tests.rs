@@ -12,7 +12,7 @@ use crate::audio_io::{read_audio, write_wav};
 use crate::strip::{NoteEvent, note_events, set_stepped_automation};
 use crate::{EngineError, Render, RenderOptions, Stereo, render};
 
-fn song(tracks: Vec<Track>) -> Project {
+pub(crate) fn song(tracks: Vec<Track>) -> Project {
     Project {
         version: FORMAT_VERSION,
         name: "test".into(),
@@ -24,7 +24,7 @@ fn song(tracks: Vec<Track>) -> Project {
     }
 }
 
-fn track(id: &str, instrument: Option<Device>, clips: Vec<Clip>) -> Track {
+pub(crate) fn track(id: &str, instrument: Option<Device>, clips: Vec<Clip>) -> Track {
     Track {
         id: id.into(),
         instrument,
@@ -47,7 +47,7 @@ fn notes(at: &str, len: &str, loop_len: Option<&str>, notes: &[&str]) -> Clip {
     }
 }
 
-fn audio(at: &str, len: &str, file: &str, offset: &str) -> Clip {
+pub(crate) fn audio(at: &str, len: &str, file: &str, offset: &str) -> Clip {
     Clip::Audio {
         id: "a".into(),
         at: at.parse().unwrap(),
@@ -68,11 +68,11 @@ fn lane(target: &str, points: &[(&str, f64)]) -> Lane {
     }
 }
 
-fn bar(project: &Project, n: u32) -> u64 {
+pub(crate) fn bar(project: &Project, n: u32) -> u64 {
     project.timing().tick(Pos::new(n, 1))
 }
 
-fn opts(sample_rate: u32, block_size: usize, stems: &[&str]) -> RenderOptions {
+pub(crate) fn opts(sample_rate: u32, block_size: usize, stems: &[&str]) -> RenderOptions {
     RenderOptions {
         sample_rate,
         block_size,
@@ -92,7 +92,7 @@ fn dbfs(x: f64) -> f64 {
     20.0 * x.max(1e-12).log10()
 }
 
-fn example(name: &str) -> (Project, PathBuf) {
+pub(crate) fn example(name: &str) -> (Project, PathBuf) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples")
         .join(name);
@@ -115,7 +115,7 @@ fn automated_nachtzug() -> (Project, PathBuf) {
     (p, root)
 }
 
-fn temp_dir(name: &str) -> PathBuf {
+pub(crate) fn temp_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("pinna-engine-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -368,7 +368,7 @@ fn sidechain_ducks_the_bass_at_kick_onsets() {
 
 /// Largest second difference. A smooth signal bends a little every sample; a step
 /// such as zipper noise or a click shows up as a spike.
-fn max_bend(x: &[f32]) -> f32 {
+pub(crate) fn max_bend(x: &[f32]) -> f32 {
     x.windows(3)
         .map(|w| (w[0] - 2.0 * w[1] + w[2]).abs())
         .fold(0.0, f32::max)

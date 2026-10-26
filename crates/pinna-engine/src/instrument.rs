@@ -8,6 +8,7 @@ use pinna_core::{Device, Kind};
 
 use crate::dsp::{Biquad, Noise, Shape, Svf, db, decay60, midi_hz, samples, smooth};
 
+#[derive(Clone)]
 pub enum Instrument {
     SawBass(Box<SawBass>),
     Pad(Pad),
@@ -95,6 +96,7 @@ enum Stage {
 
 /// Monophonic saw with sine sub, resonant low-pass and ADSR. Overlapping notes play
 /// legato: no retrigger, the pitch glides over `glide_ms`.
+#[derive(Clone)]
 pub struct SawBass {
     sr: f64,
     cutoff: f64,
@@ -239,6 +241,7 @@ fn poly_blep(t: f64, dt: f64) -> f64 {
 }
 
 /// Polyphonic pad: three detuned triangles per voice, shared low-pass, AR envelope.
+#[derive(Clone)]
 pub struct Pad {
     sr: f64,
     filter: Svf,
@@ -249,6 +252,7 @@ pub struct Pad {
     voices: Vec<PadVoice>,
 }
 
+#[derive(Clone)]
 struct PadVoice {
     id: usize,
     dt: f64,
@@ -335,6 +339,7 @@ impl Pad {
 
 /// Karplus-Strong string. `decay_ms` is the time to fall by 60 dB, `brightness`
 /// sets both the excitation and the damping in the loop.
+#[derive(Clone)]
 pub struct Pluck {
     sr: f64,
     decay_ms: f64,
@@ -343,6 +348,7 @@ pub struct Pluck {
     voices: Vec<PluckVoice>,
 }
 
+#[derive(Clone)]
 struct PluckVoice {
     id: usize,
     line: Vec<f64>,
@@ -448,6 +454,7 @@ impl Pluck {
 
 /// Drum synth: C2 kick, D2 snare, F#2 closed hat, A#2 open hat. Other pitches are
 /// silent. Noise is seeded from pitch and velocity, so every hit renders the same.
+#[derive(Clone)]
 pub struct Drums {
     sr: f64,
     kick_tune: f64,
@@ -467,6 +474,7 @@ pub const OPEN_HAT: u8 = 46;
 /// Below this the envelopes are inaudible and a voice ends.
 const DRUM_END: f64 = 1e-4;
 
+#[derive(Clone)]
 struct DrumVoice {
     /// Sine frequency at the end of the pitch sweep (0: no tone).
     tune: f64,

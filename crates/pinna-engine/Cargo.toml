@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 hound = "3.5.1"
 pinna-core.workspace = true
+rtrb = "0.4.1"
 rubato = "5.0.1"
 symphonia = { version = "0.6.1", default-features = false, features = ["wav", "flac", "mp3", "ogg", "vorbis", "pcm"] }
 thiserror = "2.0.21"

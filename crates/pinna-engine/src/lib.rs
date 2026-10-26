@@ -1,7 +1,8 @@
 //! Pinna's audio engine: compiles a project into a graph of built-in instruments and
-//! effects and renders it offline, block by block and deterministically.
+//! effects and renders it block by block and deterministically, offline with
+//! [`render`] or in real time with [`live`].
 //!
-//! Contract (Etappe 1):
+//! Contract:
 //! - `render` always runs the song from tick 0 so voices, compressor state and tails
 //!   that start before `from` are correct, and returns exactly the samples of
 //!   `[from, to)` (sample positions via [`pinna_core::Timing::sample`]).
@@ -9,6 +10,8 @@
 //! - Stems are post-fader (after fx, gain, pan and automation): the sum of all stems
 //!   is the master input. The mix is the master output after master fx and gain.
 //! - Sidechain sources are the source track's stem signal (mono sum).
+//! - Live playback runs the same [`Renderer`]: without jumps and fades it is
+//!   bit-identical to the offline render.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -22,6 +25,7 @@ pub mod audio_io;
 mod dsp;
 mod effect;
 mod instrument;
+pub mod live;
 mod strip;
 #[cfg(test)]
 mod tests;
@@ -95,15 +99,6 @@ pub fn render(
     to: u64,
     opts: &RenderOptions,
 ) -> Result<Render, EngineError> {
-    let errs = validate(project);
-    if !errs.is_empty() {
-        return Err(EngineError::Invalid(errs.join("; ")));
-    }
-    if opts.sample_rate == 0 || opts.block_size == 0 {
-        return Err(EngineError::Invalid(
-            "sample_rate and block_size must be positive".into(),
-        ));
-    }
     if from > to {
         return Err(EngineError::Invalid(format!(
             "range start {from} is after its end {to}"
@@ -120,21 +115,10 @@ pub fn render(
             stem_tracks.push((id.clone(), i));
         }
     }
-
-    let sr = opts.sample_rate;
+    let mut r = Renderer::new(project, root, opts.sample_rate, opts.block_size)?;
     let timing = project.timing();
+    let sr = opts.sample_rate;
     let (start, end) = (timing.sample(from, sr), timing.sample(to, sr));
-    let mut files = strip::FileCache::new();
-    let mut tracks = project
-        .tracks
-        .iter()
-        .map(|t| Strip::track(project, t, root, sr, &mut files))
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut master = Strip::master(project, sr);
-    let order: Vec<usize> = render_order(project)
-        .into_iter()
-        .filter(|&i| !project.tracks[i].mute)
-        .collect();
 
     let len = (end - start) as usize;
     let mut mix = Stereo {
@@ -145,38 +129,20 @@ pub fn render(
         .iter()
         .map(|(id, _)| (id.clone(), mix.clone()))
         .collect();
-    let mut bufs = vec![Stereo::silence(opts.block_size); tracks.len()];
-    let mut sum = Stereo::silence(opts.block_size);
-    let mut out = Stereo::silence(opts.block_size);
-    let mut b0 = 0;
-    while b0 < end {
-        let n = opts.block_size.min((end - b0) as usize);
-        for buf in bufs.iter_mut().chain([&mut sum, &mut out]) {
-            buf.l.truncate(n);
-            buf.r.truncate(n);
-        }
-        for &i in &order {
-            let mut buf = std::mem::take(&mut bufs[i]);
-            tracks[i].process(b0, &sum, &bufs, &mut buf);
-            bufs[i] = buf;
-        }
-        for k in 0..n {
-            sum.l[k] = bufs.iter().map(|b| b.l[k]).sum();
-            sum.r[k] = bufs.iter().map(|b| b.r[k]).sum();
-        }
-        master.process(b0, &sum, &bufs, &mut out);
-        if b0 + n as u64 > start {
+    while r.position() < end {
+        let b0 = r.next_block();
+        if b0 + opts.block_size as u64 > start {
             let skip = start.saturating_sub(b0) as usize;
+            let n = opts.block_size.min((end - b0) as usize);
             let copy = |dst: &mut Stereo, src: &Stereo| {
-                dst.l.extend_from_slice(&src.l[skip..]);
-                dst.r.extend_from_slice(&src.r[skip..]);
+                dst.l.extend_from_slice(&src.l[skip..n]);
+                dst.r.extend_from_slice(&src.r[skip..n]);
             };
-            copy(&mut mix, &out);
+            copy(&mut mix, r.mix());
             for (id, i) in &stem_tracks {
-                copy(stems.get_mut(id).expect("stem allocated"), &bufs[*i]);
+                copy(stems.get_mut(id).expect("stem allocated"), r.stem(*i));
             }
         }
-        b0 += n as u64;
     }
     Ok(Render {
         sample_rate: sr,
@@ -184,4 +150,102 @@ pub fn render(
         mix,
         stems,
     })
+}
+
+/// A running render of a project from sample 0, one block at a time. Cloning it
+/// snapshots the whole state, so playback can jump back to a point without rendering
+/// the song up to there again.
+#[derive(Clone)]
+pub struct Renderer {
+    tracks: Vec<Strip>,
+    master: Strip,
+    order: Vec<usize>,
+    bufs: Vec<Stereo>,
+    sum: Stereo,
+    out: Stereo,
+    /// First sample of the next block.
+    next: u64,
+}
+
+impl Renderer {
+    pub fn new(
+        project: &Project,
+        root: &Path,
+        sample_rate: u32,
+        block_size: usize,
+    ) -> Result<Self, EngineError> {
+        let errs = validate(project);
+        if !errs.is_empty() {
+            return Err(EngineError::Invalid(errs.join("; ")));
+        }
+        if sample_rate == 0 || block_size == 0 {
+            return Err(EngineError::Invalid(
+                "sample_rate and block_size must be positive".into(),
+            ));
+        }
+        let mut files = strip::FileCache::new();
+        let tracks = project
+            .tracks
+            .iter()
+            .map(|t| Strip::track(project, t, root, sample_rate, &mut files))
+            .collect::<Result<Vec<_>, _>>()?;
+        let order = render_order(project)
+            .into_iter()
+            .filter(|&i| !project.tracks[i].mute)
+            .collect();
+        Ok(Self {
+            bufs: vec![Stereo::silence(block_size); tracks.len()],
+            tracks,
+            master: Strip::master(project, sample_rate),
+            order,
+            sum: Stereo::silence(block_size),
+            out: Stereo::silence(block_size),
+            next: 0,
+        })
+    }
+
+    /// First sample of the block that [`Self::next_block`] renders next.
+    pub fn position(&self) -> u64 {
+        self.next
+    }
+
+    pub fn block_size(&self) -> usize {
+        self.out.len()
+    }
+
+    /// Render the next block and return its first sample. [`Self::mix`] and
+    /// [`Self::stem`] hold the result until the next call.
+    pub fn next_block(&mut self) -> u64 {
+        let b0 = self.next;
+        for &i in &self.order {
+            let mut buf = std::mem::take(&mut self.bufs[i]);
+            self.tracks[i].process(b0, &self.sum, &self.bufs, &mut buf);
+            self.bufs[i] = buf;
+        }
+        for k in 0..self.sum.len() {
+            self.sum.l[k] = self.bufs.iter().map(|b| b.l[k]).sum();
+            self.sum.r[k] = self.bufs.iter().map(|b| b.r[k]).sum();
+        }
+        self.master
+            .process(b0, &self.sum, &self.bufs, &mut self.out);
+        self.next += self.out.len() as u64;
+        b0
+    }
+
+    /// Master output of the last block.
+    pub fn mix(&self) -> &Stereo {
+        &self.out
+    }
+
+    /// Post-fader output of track `i` in the last block.
+    pub fn stem(&self, i: usize) -> &Stereo {
+        &self.bufs[i]
+    }
+
+    /// Render ahead until the next block contains `sample`.
+    pub fn skip_to(&mut self, sample: u64) {
+        while self.next + self.out.len() as u64 <= sample {
+            self.next_block();
+        }
+    }
 }
