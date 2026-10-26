@@ -1,0 +1,30 @@
+[package]
+name = "pinna-studio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+cpal = "0.18"
+# The emoji fonts cover the symbols the UI uses (▶ ■ ✓ ✎).
+egui = { version = "0.37", default-features = false, features = ["monochrome_emoji_fonts"] }
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11", "clipboard", "persistence"] }
+pinna.workspace = true
+pinna-analysis.workspace = true
+pinna-core.workspace = true
+pinna-engine.workspace = true
+png = { version = "0.18", optional = true }
+realfft = "3.5.0"
+rfd = "0.17"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+[features]
+# Save a screenshot and quit, see src/screenshot.rs.
+screenshot = ["dep:png"]
+
+[[bin]]
+name = "pinna-studio"
+path = "src/main.rs"

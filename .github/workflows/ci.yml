@@ -16,10 +16,20 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+      - name: Audio headers for cpal
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Install Rust from rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2

@@ -1,9 +1,15 @@
 [workspace]
 resolver = "3"
-members = ["crates/pinna-core", "crates/pinna-engine", "crates/pinna-analysis", "crates/pinna"]
+members = [
+    "crates/pinna-core",
+    "crates/pinna-engine",
+    "crates/pinna-analysis",
+    "crates/pinna",
+    "crates/pinna-studio",
+]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/robinchoice/pinna"
@@ -13,9 +19,15 @@ publish = false
 pinna-core = { path = "crates/pinna-core" }
 pinna-engine = { path = "crates/pinna-engine" }
 pinna-analysis = { path = "crates/pinna-analysis" }
+pinna = { path = "crates/pinna" }
 
 [profile.dev.package."*"]
 opt-level = 2
 
 [profile.test]
 opt-level = 1
+
+# Live playback (and its tests) runs in real time: the engine renders at release
+# speed in every profile.
+[profile.dev.package.pinna-engine]
+opt-level = 3

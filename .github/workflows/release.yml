@@ -1,0 +1,72 @@
+name: Release
+
+# A tag v* builds unsigned binaries (pinna and pinna-studio) for Linux, macOS and
+# Windows and attaches them to a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04 for an older glibc, so the binary runs on more distributions.
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, name: linux-x86_64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, name: macos-arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: macos-x86_64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: windows-x86_64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audio headers for cpal
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install && rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }} -p pinna -p pinna-studio
+      - name: Package
+        env:
+          NAME: pinna-${{ github.ref_name }}-${{ matrix.name }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/$NAME"
+          ext=""; [ "$RUNNER_OS" = Windows ] && ext=".exe"
+          cp "target/$TARGET/release/pinna$ext" "target/$TARGET/release/pinna-studio$ext" "dist/$NAME/"
+          cp README.md LICENSE-MIT LICENSE-APACHE "dist/$NAME/"
+          cd dist
+          if [ "$RUNNER_OS" = Windows ]; then 7z a "$NAME.zip" "$NAME" >/dev/null; else tar czf "$NAME.tar.gz" "$NAME"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/*.*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Pinna $TAG" \
+            --notes "Unsigned builds of \`pinna\` (CLI and MCP server) and \`pinna-studio\`. macOS: the first start is blocked by Gatekeeper; allow it under System Settings > Privacy & Security, or run \`xattr -d com.apple.quarantine pinna-studio pinna\` in the unpacked folder."
