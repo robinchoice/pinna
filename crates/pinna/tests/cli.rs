@@ -331,7 +331,11 @@ fn reference_must_stay_inside_the_project() {
             tmp.path().join("outside.wav").to_str().unwrap(),
         ],
     );
-    assert!(err.contains("must be relative to the project"), "{err}");
+    // Windows paths are caught earlier, by their backslashes.
+    assert!(
+        err.contains("must be relative to the project") || err.contains("invalid characters"),
+        "{err}"
+    );
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(tmp.path().join("outside.wav"), song.join("ref.wav")).unwrap();
