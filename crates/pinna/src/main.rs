@@ -1,11 +1,4 @@
-//! `pinna`: CLI and MCP server. Commands and tools share the same functions, which
-//! return plain text or an error message meant for the caller.
-
-mod git;
-mod mcp;
-mod measure;
-mod project;
-mod proposal;
+//! `pinna`: CLI and MCP server. Commands and tools share the same library functions.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -13,8 +6,9 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
-use crate::measure::RENDERS;
-use crate::project::WORKTREE;
+use pinna::measure::RENDERS;
+use pinna::project::WORKTREE;
+use pinna::{mcp, measure, project, proposal};
 
 #[derive(Parser)]
 #[command(

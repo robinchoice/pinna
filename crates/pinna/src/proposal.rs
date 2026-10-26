@@ -201,6 +201,95 @@ pub fn list(root: &Path) -> Result<String, String> {
     Ok(out)
 }
 
+/// A proposal as Pinna Studio shows it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Info {
+    /// Branch name without `proposal/`; empty once accepted.
+    pub name: String,
+    /// Short hash of the proposal commit.
+    pub hash: String,
+    pub title: String,
+    pub why: String,
+    /// Range the evidence was measured over, e.g. `Refrain 9.1-17.1, 15.5 s`.
+    pub label: String,
+    /// `metric: A -> B (delta)` lines and notes, as committed.
+    pub evidence: Vec<String>,
+}
+
+impl Info {
+    /// Ticks range of the label, like `9.1-17.1`.
+    pub fn range(&self) -> &str {
+        let head = self.label.split(", ").next().unwrap_or_default();
+        head.rsplit(' ').next().unwrap_or_default()
+    }
+}
+
+/// Split a proposal commit message (`%h` line, then `%B`). None without evidence.
+fn parse_info(name: &str, log: &str) -> Option<Info> {
+    let (hash, message) = log.split_once('\n')?;
+    let at = message.find(EVIDENCE)?;
+    let (head, evidence) = message.split_at(at);
+    let (title, why) = head.split_once('\n').unwrap_or((head, ""));
+    let mut lines = evidence.lines().filter(|l| !l.trim().is_empty());
+    let header = lines.next()?;
+    let label = header
+        .strip_prefix(EVIDENCE)
+        .and_then(|h| h.trim_start().strip_prefix('('))
+        .and_then(|h| h.rsplit_once(", A = "))
+        .map_or("", |(label, _)| label);
+    Some(Info {
+        name: name.to_string(),
+        hash: hash.trim().to_string(),
+        title: title.trim().to_string(),
+        why: why.trim().to_string(),
+        label: label.to_string(),
+        evidence: lines.map(|l| l.trim().to_string()).collect(),
+    })
+}
+
+/// Open proposals, oldest branch name first.
+pub fn open(root: &Path) -> Result<Vec<Info>, String> {
+    let mut out = Vec::new();
+    for branch in open_branches(root)? {
+        let log = git(root, &["log", "-1", "--format=%h%n%B", &branch])?;
+        out.extend(parse_info(&branch[PREFIX.len()..], &log));
+    }
+    Ok(out)
+}
+
+/// Accepted proposals in the history of HEAD, newest first, at most `max`.
+pub fn accepted(root: &Path, max: usize) -> Result<Vec<Info>, String> {
+    let log = git(
+        root,
+        &[
+            "log",
+            "-n",
+            "200",
+            "--no-merges",
+            "--format=%h%n%B%x00",
+            "HEAD",
+        ],
+    )?;
+    Ok(log
+        .split('\0')
+        .filter_map(|entry| parse_info("", entry.trim_start_matches('\n')))
+        .take(max)
+        .collect())
+}
+
+/// The project as accepting the proposal would leave it: HEAD merged with the
+/// proposal. Without a clean merge, the proposal branch as committed.
+pub fn preview(root: &Path, name: &str) -> Result<pinna_core::Project, String> {
+    let branch = proposal_branch(root, name)?;
+    let merged = git(root, &["merge-tree", "--write-tree", "HEAD", &branch])
+        .ok()
+        .and_then(|out| out.lines().next().map(str::to_string));
+    match merged {
+        Some(tree) => crate::project::load_rev(root, &tree),
+        None => crate::project::load_rev(root, &branch),
+    }
+}
+
 fn proposal_branch(root: &Path, name: &str) -> Result<String, String> {
     let name = name.strip_prefix(PREFIX).unwrap_or(name);
     git::check_rev(name)?;
@@ -389,5 +478,70 @@ mod tests {
                 .contains("126.0")
         );
         assert_eq!(git(root, &["diff", "--cached", "--name-only"]).unwrap(), "");
+    }
+
+    #[test]
+    fn info_lists_open_and_accepted_and_previews_the_merge() {
+        let dir = repo();
+        let root = dir.path();
+        let evidence = |label: &str| {
+            format!(
+                "{EVIDENCE} ({label}, A = abc1234, B = proposal):\nintegrated LUFS: -10.4 -> -10.3 (+0.1)\nloudness match skipped: A or B is silent"
+            )
+        };
+        change(root);
+        let paths = changed_paths(root).unwrap();
+        commit(
+            root,
+            "Faster",
+            "More drive.\n\nTwo lines.",
+            &evidence("Refrain 9.1-17.1, 15.5 s"),
+            &paths,
+        )
+        .unwrap();
+        let renamed = EXAMPLES[0].1.replace("name: \"Outro\"", "name: \"Ende\"");
+        fs::write(root.join(PROJECT_FILE), renamed).unwrap();
+        let paths = changed_paths(root).unwrap();
+        commit(
+            root,
+            "Rename",
+            "A new name.",
+            &evidence("all 1.1-33.1, 61.9 s"),
+            &paths,
+        )
+        .unwrap();
+
+        let open = open(root).unwrap();
+        assert_eq!(open.len(), 2);
+        let faster = &open[0];
+        assert_eq!(faster.name, "faster");
+        assert_eq!(faster.title, "Faster");
+        assert_eq!(faster.why, "More drive.\n\nTwo lines.");
+        assert_eq!(faster.label, "Refrain 9.1-17.1, 15.5 s");
+        assert_eq!(faster.range(), "9.1-17.1");
+        assert_eq!(open[1].range(), "1.1-33.1");
+        assert_eq!(
+            faster.evidence,
+            [
+                "integrated LUFS: -10.4 -> -10.3 (+0.1)",
+                "loudness match skipped: A or B is silent"
+            ]
+        );
+        assert_eq!(
+            faster.hash,
+            git::short_hash(root, "proposal/faster").unwrap()
+        );
+        assert!(accepted(root, 5).unwrap().is_empty());
+
+        accept(root, "faster").unwrap();
+        let done = accepted(root, 5).unwrap();
+        assert_eq!(done.len(), 1);
+        assert_eq!(
+            (done[0].name.as_str(), done[0].title.as_str()),
+            ("", "Faster")
+        );
+        // The preview of the other proposal is what accepting it would give: both changes.
+        let p = preview(root, "rename").unwrap();
+        assert_eq!((p.sections[3].name.as_str(), p.tempo), ("Ende", 126.0));
     }
 }
