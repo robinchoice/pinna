@@ -21,6 +21,10 @@ pinna-engine = { path = "crates/pinna-engine" }
 pinna-analysis = { path = "crates/pinna-analysis" }
 pinna = { path = "crates/pinna" }
 
+# Full debuginfo made every test and binary ~470 MB and target/ grew ~18 GB a day.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package."*"]
 opt-level = 2
 
