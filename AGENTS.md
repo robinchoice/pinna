@@ -3,7 +3,8 @@
 ## Zweck & Links
 
 - Agent-native DAW in Rust: project as text (`pinna.ron`), offline render with a measurement return channel, MCP server, proposals as Git branches with measured evidence. GitHub: `robinchoice/pinna`, public, MIT OR Apache-2.0.
-- Stage 1: engine, analysis, CLI/MCP, proposals as Git branches. Stage 2 (now): Pinna Studio (`crates/pinna-studio`, egui/eframe with glow, cpal output), built after the approved mockup "Studio + Hör-Review" in `~/dev/mockups/pinna/` (outside the repo): arrangement view, ghosts where a proposal acts, proposal column with evidence, loudness-matched A/B, accept = merge, task field that starts an agent with the Pinna MCP.
+- Parked since 12.11.2026 (Robin, back to Logic Pro): no new work on engine and studio. `pinna-analysis` lives on as the measurement layer for Logic bounces in Music Hub (`robinchoice/music-hub`, versions uploaded by `robinchoice/musichub-plugin`).
+- Stage 1: engine, analysis, CLI/MCP, proposals as Git branches. Stage 2: Pinna Studio (`crates/pinna-studio`, egui/eframe with glow, cpal output), built after the approved mockup "Studio + Hör-Review" in `~/dev/mockups/pinna/` (outside the repo): arrangement view, ghosts where a proposal acts, proposal column with evidence, loudness-matched A/B, accept = merge, task field that starts an agent with the Pinna MCP.
 - Patterns taken (not forked) from github.com/richer-richard/cochlea: RON score, agent digest, from/to zoom, determinism levels, path hardening.
 - Related: `robinchoice/rust-dsp-anywhere` (invariant render tests).
 
