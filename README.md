@@ -1,5 +1,10 @@
 # Pinna
 
+> **Archived (November 2026).** Pinna is no longer developed. Its measurements
+> (spectrum, stereo image, reference comparison) continue in
+> [Music Hub](https://github.com/robinchoice/music-hub), which analyses DAW bounces
+> per version. The code here stays available under its license.
+
 An agent-native audio workstation in Rust. Agents can already drive DAWs, but they
 cannot hear what they do. Pinna is built around that gap:
 
